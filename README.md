@@ -47,9 +47,13 @@ Cache Behavior
 7. Cache TTL can also be configured via CLI using the `--ttl` flag
 
 ### Tech Stack
+
 Python
+
 FastAPI
+
 HTTPX
+
 Uvicorn
 
 **How to Run Locally**
@@ -66,22 +70,31 @@ Access Swagger docs at:
 http://127.0.0.1:8000/docs
 
 ## CLI USAGE (Recommended)
+
 This project also provides a simple CLI wrapper to start the caching proxy server with configurabel options such as port, upstream origin, and cache TTL.
 
 **Start the server using CLI**
-python caching_proxy.py --port 3000 --origin https://dummyjson.com --ttl 15
+
+*python caching_proxy.py --port 3000 --origin https://dummyjson.com --ttl 15*
+
 CLI Options
 + --port: Port number on which the proxy server should run (default: 8000)
 + --origin: Base upstream URL to proxy requests to (eg: https://dummyjson.com)
 + --ttl: Cache TTL (Time To Live) in seconds
 
 *Example Usage*
+
 After starting the server with:
-python caching_proxy.py --port 3000 --origin https://dummyjson.com --ttl 15
+*python caching_proxy.py --port 3000 --origin https://dummyjson.com --ttl 15*
+
 You can make requests like:
+
 GET http://127.0.0.1:3000/proxy?url=products
+
 This request will be proxied to:
+
 https://dummyjson.com/products
+
 Cached responses will expire after 15 seconds.
 
 ### Future Improvements

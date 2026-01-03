@@ -16,6 +16,7 @@ The goal of this project is to demonstrate backend system design concepts such a
 
 ### API Endpoints
 **GET /proxy**
+
 Proxies a request to an upstream API and caches the response.
 *Query Parameters*
 url (string, required): Upstream API URL
@@ -27,7 +28,9 @@ Response
 }
 
 **DELETE /cache**
+
 Clears all cached responses.
+
 Response
 {
   "success": true,

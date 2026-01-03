@@ -104,3 +104,6 @@ Cached responses will expire after 15 seconds.
 1. Redis-based distributed cache
 2. Support for additional HTTP methods
 3. Rate limiting and observability
+
+## EXTRAS
+This repo serves as a solution to https://roadmap.sh/projects/caching-server

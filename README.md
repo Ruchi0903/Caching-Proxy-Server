@@ -18,8 +18,11 @@ The goal of this project is to demonstrate backend system design concepts such a
 **GET /proxy**
 
 Proxies a request to an upstream API and caches the response.
+
 *Query Parameters*
+
 url (string, required): Upstream API URL
+
 Response
 {
     "success": true,

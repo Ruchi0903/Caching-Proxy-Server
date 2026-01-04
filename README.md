@@ -148,6 +148,10 @@ https://dummyjson.com/products
 
 Cached responses will expire after 15 seconds.
 
+You can see metrics at:
+
+http://127.0.0.1:8000/metrics
+
 ### Redis Cache
 To use Redis as the cache backend:
 

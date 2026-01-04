@@ -1,15 +1,21 @@
 from fastapi import APIRouter, Query, HTTPException, Response
 import httpx
+import logging
 from app.core.config import get_cache_ttl, get_upstream_base_url
+from app.core.metrics import metrics
 
 from app.services.cache import cache
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # CACHE_TTL = 60 #seconds
 
 @router.get("/proxy")
 async def proxy_response(response: Response, url: str = Query(..., description="Upstream URL")):
+    logger.info(f"Incoming proxy request for url={url}")
+    metrics.record_request()
+
     base_url = get_upstream_base_url()
 
     if not url.startswith("http"):
@@ -27,6 +33,8 @@ async def proxy_response(response: Response, url: str = Query(..., description="
     # 2. Check cache
     cached_response = cache.get(cache_key)
     if cached_response is not None:
+        logger.info(f"Cache HIT for key={cache_key}")
+        metrics.record_cache_hit()
         response.headers["X-Cache"] = "HIT"
         return {
             "success": True,
@@ -35,11 +43,17 @@ async def proxy_response(response: Response, url: str = Query(..., description="
         }
     
     # 3. Cache miss -> call upstream
+    logger.info(f"Cache MISS for key={cache_key}. Fetching from upstream.")
+    metrics.record_cache_miss()
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(url)
         
+        logger.info(f"Upstream request successful for url={url}")
+        
         if response.status_code >= 400:
+            logger.error(f"Upstream request failed for url={url}")
             raise HTTPException(
                 status_code=response.status_code,
                 detail="Upstream server returned an error",
@@ -50,36 +64,29 @@ async def proxy_response(response: Response, url: str = Query(..., description="
         # 4. Store in cache
         cache.set(cache_key, data, get_cache_ttl())
         response.headers["X-Cache"] = "MISS"
+        
+        logger.info(f"Upstream request successful for url={url}")
+
         return {
-            "succes": True,
+            "success": True,
             "source": "upstream",
             "data": data,
         }
     
     except httpx.RequestError:
+        logger.error(f"Upstream request unreachable for url={url}")
         raise HTTPException(status_code=400, detail="Invalid or unreachable upstream URL")
     
 
 @router.delete("/cache")
 def clear_cache():
     cache.clear()
+    logger.info("Cache cleared manually")
     return {"success": True, "message": "Cache cleared successfully"}
-    
 
-
-# APIRouter() - like express.Router()
-# Query - used to explicitly define query params, fastapi is strict, hence we need to use it.
-# HTTPException - like res.status(400).json({...}); fastapi way of throwing http errors.
-# httpx - axios equivalent; modern, async, built for fastapi
-
-# @router.get("/proxy") = router decorator in python => similar to func chaining in express.js = router.get("/proxy", async(req, res)) => {}
-# async def proxy_response(url: str = Query(..., description="Upstream URL")): => similar to async function proxyResponse(req, res) {const url = req.query.url}
-# async def = enables await
-# url: str = tells that url should be a string; fastapi uses this for validation, swagger docs, auto error handling 
-# Query(...) = means this comes from query params; ... = required parameter; if user doesn't pass ?url=, fastapi auto-throws 422 error
-# async with httpx.AsyncClient() as client: => like const axios = require("axios"); But better.
-# "async with" - automatically opens + closes connection, no memory leaks.
-# response = await client.get(url) => similar to: const response = await axios.get(url);
-# return {"upstream_status": response.status_code,"data": response.json()} => similar to res.json({upstream_status: response.status, data: response.data})
-# fastapi automatically json-serializes dicts, no res.json() needed.
-# except httpx.RequestError: raise HTTPException(status_code=400, detail="Invalid...") => similar to catch(err){res.status(400).json({message: "Invalid..."})}
+@router.get("/metrics")
+def get_metrics():
+    return{
+        "success": True,
+        "metrics": metrics.snapshot()
+    }

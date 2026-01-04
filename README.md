@@ -1,18 +1,24 @@
 # 🧠 Caching Proxy Server (FastAPI)
 ## Overview
 This project is an HTTP caching proxy server built using FastAPI.
-It intercepts client requests, checks an in-memory cache with TTL-based expiration, and forwards cache-miss requests to an upstream API.
+It intercepts client requests, checks a cache with TTL-based expiration, and forwards cache-miss requests to an upstream API. The cache layer supports **both in-memory and Redis-based backends**, selectable at runtime.
 
-The goal of this project is to demonstrate backend system design concepts such as request forwarding, caching strategies, cache invalidation, and clean service separation.
+The goal of this project is to demonstrate backend system design concepts such as request forwarding, caching strategies, cache invalidation, observability (logging & metrics), and clean service separation.
 
 ## Features
 1. HTTP proxy endpoint to forward requests to upstream APIs
-2. In-memory caching with TTL-based expiration
-3. Automatic cache invalidation after TTL expiry
-4. Manual cache invalidation endpoint
-5. Asynchronous upstream requests using httpx
-6. Clean separation between API layer and cache logic
-7. Consistent response structure and error handling
+2. Pluggable cache backends:
+  + In-memory cache (default)
+  + Redis-based distributed cache
+3. TTL-based cache expiration (ENV + CLI configurable)
+4. Automatic cache invalidation after TTL expiry
+5. Manual cache invalidation endpoint
+6. Asynchronous upstream requests using httpx
+7. Clean separation between API, cache, and upstream services
+8. Consistent response structure and error handling
+9. X-Cache response headers (HIT/MISS)
+10. Structured logging for request flow and cache behavior
+11. Internal metrics endpoint to monitor cache effectiveness
 
 ### API Endpoints
 **GET /proxy**
@@ -30,9 +36,12 @@ Response
     "data": {...}
 }
 
+Response Headers
+X-Cache: HIT | MISS
+
 **DELETE /cache**
 
-Clears all cached responses.
+Clears all cached responses (in-memory or Redis).
 
 Response
 {
@@ -40,24 +49,63 @@ Response
   "message": "Cache cleared successfully"
 }
 
+**GET /metrics**
+
+Exposes internal metrics for cache behavior
+
+Response
+{
+  "success": true,
+  "metrics": {
+    "total_requests": 10,
+    "cache_hits": 7,
+    "cache_misses": 3,
+    "cache_hit_ratio": 0.7
+  }
+}
+
 Cache Behavior
-1. Cached responses are stored in memory
-2. Each cache entry has a configurable TTL
-3. Cache entries are automatically invalidated after expiry
-4. Manual cache clearing is supported via API
-5. Cache TTL can be configured using the `CACHE_TTL` environment variable
-6. Defaults to 60 seconds if not provided.
+1. Cached responses are stored using either in-memory or Redis backend
+2. Cache backend is selected via environment variable:
+  + CACHE_BACKEND=memory (default)
+  + CACHE_BACKEND=redis 
+3. Each cache entry has a configurable TTL
+4. Cache entries are automatically invalidated after expiry
+5. Manual cache clearing is supported via API
+6. Cache TTL can be configured using the `CACHE_TTL` environment variable
 7. Cache TTL can also be configured via CLI using the `--ttl` flag
+8. Redis cache persists across application restarts
+
+### Observability
+
+#### Logging
+
+Structured logs are emitted for:
+
+  + Incoming proxy requests
+  + Cache HIT/MISS events
+  + Upstream request success and failure
+  + Cache backend selection
+  + Manual cache invalidation
+
+#### Metrics
+
+The service exposes internal metrics to measure:
+
+  + Total requests
+  + Cache hits
+  + Cache misses
+  + Cache hit ratio
+
+This provides visibility into cache effectiveness and request patterns.
 
 ### Tech Stack
 
-Python
-
-FastAPI
-
-HTTPX
-
-Uvicorn
++ Python
++ FastAPI
++ HTTPX
++ Uvicorn
++ Redis
 
 **How to Run Locally**
 
@@ -100,10 +148,18 @@ https://dummyjson.com/products
 
 Cached responses will expire after 15 seconds.
 
-### Future Improvements
-1. Redis-based distributed cache
-2. Support for additional HTTP methods
-3. Rate limiting and observability
+### Redis Cache
+To use Redis as the cache backend:
+
+*CACHE_BACKEND=redis \
+REDIS_URL=redis://localhost:6379 \
+UPSTREAM_BASE_URL=https://dummyjson.com \
+uvicorn app.main:app --reload*
+
+Redis enables:
+  + Distributed caching
+  + Persistence across server starts
+  + Production-ready cache behavior
 
 ## EXTRAS
-This repo serves as a solution to https://roadmap.sh/projects/caching-server
+This repository serves as a solution to https://roadmap.sh/projects/caching-server

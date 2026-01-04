@@ -1,12 +1,13 @@
-# The cache service here shoud expose exactly these abilities:
-# 1. get(key) -> return cached response or None
-# 2. set(key, value, ttl) -> store response
-# 3. clear() -> delete everything
-
 import time
 from typing import Any, Dict
+from app.services.base_cache import BaseCache
+import os
+from app.services.redis_cache import RedisCache
+import logging
 
-class InMemoryCache:
+logger = logging.getLogger(__name__)
+
+class InMemoryCache(BaseCache):
     def __init__(self):
         self._store: Dict[str, Dict[str , Any]] = {}
     
@@ -34,20 +35,12 @@ class InMemoryCache:
     def clear(self):
         self._store.clear()
 
-cache = InMemoryCache()
+CACHE_BACKEND = os.getenv("CACHE_BACKEND", "memory")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
-
-# time = used to get current time like Date.now()
-# typing = only for developer clarity, doesn't affect runtime, like typescript types - but optional & not annoying
-# class InMemoryCache -- defining the cache class
-# __init__ = constructor; self = this; _store = actual cache; _ in _store = means don't touch this directly.
-# get() method = cache read
-# entry = self()._store.get(key) => similar to const entry = this._store[key]; => difference is, .get() returns None (better), Js returns undefined.
-# time.time() = current UNIX timestamp in seconds.
-# del self._store[key] return None => delete expired cache => expired entries are removed only when accessed
-# return entry["value"] => similar to return entry.value; => cached response returned
-# set() method = cache write; def set(self, key: str, value: Any, ttl: int): => similar to set(key, value, ttl) {
-# expires_at = time.time() + ttl => similar to const expiresAt = (Date.now()/1000) + ttl;
-# store data => self.store[key] = {"value": value, "expires_at": expires_at,}
-# clear() method => deletes everything; use case: cli command, admin endpoint, debugging, rage moments
-# Creating a singleton instance -> cache = InMemoryCache() => similar to module.exports = new InMemoryCache() => same cache instance shared everywhere, memory persists as long as app is running, app restart = cache wiped (expected)
+if CACHE_BACKEND == "redis":
+    cache = RedisCache(REDIS_URL)
+    logger.info("Using Redis cache backend")
+else:
+    cache = InMemoryCache()
+    logger.info("Using in-memory cache backend")

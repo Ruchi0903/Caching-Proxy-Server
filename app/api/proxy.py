@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Query, HTTPException, Response
 import httpx
 import logging
@@ -12,7 +14,7 @@ logger = logging.getLogger(__name__)
 # CACHE_TTL = 60 #seconds
 
 @router.get("/proxy")
-async def proxy_response(response: Response, url: str = Query(..., description="Upstream URL")):
+async def proxy_response(fastapi_response: Response, url: str = Query(..., description="Upstream URL")):
     logger.info(f"Incoming proxy request for url={url}")
     metrics.record_request()
 
@@ -35,7 +37,7 @@ async def proxy_response(response: Response, url: str = Query(..., description="
     if cached_response is not None:
         logger.info(f"Cache HIT for key={cache_key}")
         metrics.record_cache_hit()
-        response.headers["X-Cache"] = "HIT"
+        fastapi_response.headers["X-Cache"] = "HIT"
         return {
             "success": True,
             "source": "cache",
@@ -48,22 +50,22 @@ async def proxy_response(response: Response, url: str = Query(..., description="
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(url)
+            upstream_response = await client.get(url)
         
         logger.info(f"Upstream request successful for url={url}")
         
-        if response.status_code >= 400:
+        if upstream_response.status_code >= 400:
             logger.error(f"Upstream request failed for url={url}")
             raise HTTPException(
-                status_code=response.status_code,
+                status_code=upstream_response.status_code,
                 detail="Upstream server returned an error",
             )
         
-        data = response.json()
+        data = upstream_response.json()
 
         # 4. Store in cache
         cache.set(cache_key, data, get_cache_ttl())
-        response.headers["X-Cache"] = "MISS"
+        fastapi_response.headers["X-Cache"] = "MISS"
         
         logger.info(f"Upstream request successful for url={url}")
 
@@ -79,11 +81,23 @@ async def proxy_response(response: Response, url: str = Query(..., description="
     
 
 @router.delete("/cache")
-def clear_cache():
-    cache.clear()
-    logger.info("Cache cleared manually")
-    return {"success": True, "message": "Cache cleared successfully"}
-
+async def clear_cache(url: Optional[str] = Query(None, description="Upstream URL to invalidate. If omitted, clears entire cache.")):
+    if url:
+        cache_key = f"GET:{url}"
+        deleted = await cache.delete(cache_key)
+ 
+        if deleted:
+            logger.info(f"Cache invalidated for key={cache_key}")
+            return {"success": True, "message": f"Cache entry deleted for url={url}"}
+        else:
+            logger.info(f"Cache invalidation requested but key not found: {cache_key}")
+            raise HTTPException(status_code=404, detail=f"No cache entry found for url={url}")
+    else:
+        # Full cache clear
+        await cache.clear()
+        logger.info("Cache cleared manually")
+        return {"success": True, "message": "Cache cleared successfully"}
+ 
 @router.get("/metrics")
 def get_metrics():
     return{

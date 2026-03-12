@@ -3,13 +3,17 @@ from typing import Any
 
 class BaseCache(ABC):
     @abstractmethod
-    def get(self, key: str) -> Any:
+    async def get(self, key: str) -> Any:
         pass
     
     @abstractmethod
-    def set(self, key: str, value: Any, ttl: int):
+    async def delete(self, key: str) -> bool:
         pass
 
     @abstractmethod
-    def clear(self):
+    async def set(self, key: str, value: Any, ttl: int):
+        pass
+
+    @abstractmethod
+    async def clear(self):
         pass
